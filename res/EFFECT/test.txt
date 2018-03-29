@@ -1,0 +1,149 @@
+matrix WorldMatrix;
+matrix ViewMatrix;
+matrix ProjectionMatrix;
+const float4 MeshColor = {0.0f, 0.0f, 0.05f, 1.0f};
+const float4 LightColor = {0.5f, 0.1f, 0.2f, 1.0f};
+
+float4 LightDir;   // = {-1.0f, -1.0f, -1.0f, 0.0f};
+const float specfactor = 16;
+
+struct VS_OUTPUT
+{
+	float4 Pos : POSITION;
+	float3 Normal : TEXCOORD1;
+	float3 LightDir : TEXCOORD0;
+	float3 eyepos : TEXCOORD2;
+};
+
+struct VS_OUTPUT2
+{
+	float4 Pos : POSITION;
+	float3 Normal : TEXCOORD1;
+	float3 LightDir : TEXCOORD0;
+};
+
+
+VS_OUTPUT ShaderFunc(
+			float4 Pos : POSITION,
+			float3 Normal : NORMAL
+		    )
+{
+	VS_OUTPUT Out = (VS_OUTPUT)0;
+
+	float lenDir = length(LightDir - Pos);
+	Pos.y += lenDir / 3;
+
+	float4x4 mat = mul( mul(WorldMatrix, ViewMatrix), ProjectionMatrix);
+	
+	Out.Normal = normalize(mul(Normal, WorldMatrix));
+	Out.LightDir = LightDir;
+	float3 worldpos = normalize(mul(Normal, WorldMatrix));
+	Out.eyepos = LightDir - worldpos;
+	
+	Out.Pos = mul(Pos, mat);
+	
+	return Out;
+}
+
+float4 Pixel_Sh(float3 normal : TEXCOORD1,
+		float3 lightdir : TEXCOORD0,
+		float3 eye : TEXCOORD2
+		) : COLOR0
+{
+	float lenDir = length(LightDir);
+
+	float4 col = MeshColor;
+
+	float3 normalized = normalize(normal);
+	float3 lightn = normalize(lightdir);
+	float4 diffuse = saturate(dot(lightn, normalized) * 1.2f);
+
+	float3 reflection = normalize(2 * diffuse * normalized - lightn);
+	float3 eyen = normalize(eye);
+	float4 specular = pow(saturate(dot(reflection, eyen)), specfactor);
+
+	col = normalize((col * diffuse)) / (lenDir * 0.2f) + (LightColor * (specular / (lenDir * 0.33333333f)));
+
+	return (col);
+}
+
+float4 Pixel_Sh2(float3 normal : TEXCOORD1,
+		float3 lightdir : TEXCOORD0,
+		float3 eye : TEXCOORD2
+		) : COLOR0
+{
+	float lenDir = length(LightDir);
+
+	float4 col = MeshColor;
+
+	float3 normalized = normalize(normal);
+	float3 lightn = normalize(lightdir);
+	float4 diffuse = saturate(dot(lightn, normalized) * 1.2f);
+
+	float3 reflection = normalize(2 * diffuse * normalized - lightn);
+	float3 eyen = normalize(eye);
+	float4 specular = pow(saturate(dot(reflection, eyen)), specfactor);
+
+	col = (col * diffuse) + (LightColor * (diffuse / 2)) * (lenDir / 8);
+	col /= (lenDir / 5) + (LightColor * (specular / (lenDir / 3)));
+
+	return (col);
+}
+
+
+float4 Pixel_Sh3(float3 normal : TEXCOORD0, float3 LDIR : TEXCOORD1) : COLOR0
+{
+
+	float4 col = { 0.6f, 0.2, 0.2, 0.98f };
+
+	float3 normalized = normalize(normal);
+	float4 diffuse = saturate(dot(LDIR, normalized) * 1.2f);
+
+	return col * diffuse;
+}
+
+VS_OUTPUT2 ShaderFunc2(float4 Pos : POSITION, float3 Normal : NORMAL)
+{
+	VS_OUTPUT2 Out;
+	Out.LightDir.x = WorldMatrix._14;
+	Out.LightDir.y = WorldMatrix._24;
+	Out.LightDir.z = WorldMatrix._34;
+	Out.LightDir = float3(1.0f, 1.0f, 1.0f) - Out.LightDir;
+
+	float lenDir = length(LightDir - Pos);
+	Pos.y += lenDir / 3;
+
+	float4x4 mat = mul( mul(WorldMatrix, ViewMatrix), ProjectionMatrix);
+	Out.Pos = mul(Pos, mat);
+	Out.Normal = Out.Normal = normalize(mul(Normal, WorldMatrix));
+
+	return Out;
+}
+
+
+technique T0
+{
+	pass P0
+	{
+		vertexshader = compile vs_1_1 ShaderFunc();
+		pixelshader  = compile ps_2_0 Pixel_Sh();
+	}
+}
+
+technique T1
+{
+	pass P0
+	{
+		vertexshader = compile vs_1_1 ShaderFunc();
+		pixelshader  = compile ps_2_0 Pixel_Sh2();
+	}
+}
+
+technique T2
+{
+	pass P0
+	{
+		vertexshader = compile vs_1_1 ShaderFunc2();
+		pixelshader  = compile ps_2_0 Pixel_Sh3();
+	}
+}
